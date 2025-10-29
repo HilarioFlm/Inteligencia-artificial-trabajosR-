@@ -1,0 +1,112 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.datasets import load_wine
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler # <--- MEJORA: Estandarización
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+import pandas as pd
+import seaborn as sns
+
+#PREPARACIÓN DE DATOS
+
+# Cargar el conjunto de datos
+data = load_wine()
+X = data.data
+y = data.target
+# random_state=42 asegura la reproducibilidad de la división
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.3, random_state=42, stratify=y
+)
+
+#Estandarización (ESENCIAL para KNN)
+# La escala de las características afecta a la distancia euclidiana,
+# por lo que es vital estandarizar los datos.
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+print(f"Datos de entrenamiento: {X_train_scaled.shape}")
+print(f"Datos de prueba: {X_test_scaled.shape}")
+print("-" * 40)
+
+#BÚSQUEDA DEL VALOR ÓPTIMO DE K
+
+# Evaluar el modelo para diferentes valores de K
+k_range = range(1, 26)
+scores = {}
+best_k = 0
+best_score = 0
+
+for k in k_range:
+    knn = KNeighborsClassifier(n_neighbors=k)
+    knn.fit(X_train_scaled, y_train)
+    y_pred_k = knn.predict(X_test_scaled)
+    accuracy = accuracy_score(y_test, y_pred_k)
+    scores[k] = accuracy
+    
+    if accuracy > best_score:
+        best_score = accuracy
+        best_k = k
+
+#MODELO FINAL
+# Entrenar el modelo final con el K óptimo encontrado
+print(f"Mejor valor de K encontrado: {best_k}")
+knn_final = KNeighborsClassifier(n_neighbors=best_k)
+knn_final.fit(X_train_scaled, y_train)
+y_pred_final = knn_final.predict(X_test_scaled)
+accuracy_final = accuracy_score(y_test, y_pred_final)
+
+print("-" * 40)
+print(f"Precisión del modelo KNN (K={best_k}): {accuracy_final:.4f}")
+print("\n--- Reporte de Clasificación ---")
+print(classification_report(y_test, y_pred_final, target_names=data.target_names))
+
+
+# VISUALIZACIÓN DE RESULTADOS 
+#Precisión vs Valor de K
+plt.figure(figsize=(10, 6))
+plt.plot(k_range, scores.values(), marker='o', linestyle='--', color='blue')
+plt.title('Precisión del Modelo KNN para diferentes valores de K')
+plt.xlabel('Número de Vecinos (K)')
+plt.ylabel('Precisión (Accuracy)')
+plt.xticks(k_range)
+plt.grid(True, linestyle='--', alpha=0.6)
+plt.axvline(x=best_k, color='red', linestyle='-', label=f'K Óptimo = {best_k}')
+plt.legend()
+plt.show()
+
+## Matriz de Confusión
+cm = confusion_matrix(y_test, y_pred_final)
+plt.figure(figsize=(8, 7))
+sns.heatmap(
+    cm, 
+    annot=True, 
+    fmt='d', 
+    cmap='Blues', 
+    xticklabels=data.target_names, 
+    yticklabels=data.target_names
+)
+plt.title(f'Matriz de Confusión para KNN (K={best_k})')
+plt.xlabel('Predicción')
+plt.ylabel('Valor Real')
+plt.show()
+
+#Visualización de la Clasificación (Original)
+
+# Este gráfico solo utiliza las primeras dos características para poder visualizar
+# la clasificación en 2D, aunque el modelo usa las 13 características.
+plt.figure(figsize=(9, 6))
+scatter = plt.scatter(X_test_scaled[:, 0], X_test_scaled[:, 1], c=y_pred_final, cmap='viridis', edgecolors='k', s=80)
+plt.title(f'Clasificación KNN (K={best_k}) en 2D')
+plt.xlabel(f'{data.feature_names[0]} (Estandarizado)')
+plt.ylabel(f'{data.feature_names[1]} (Estandarizado)')
+
+#leyenda de clases
+legend1 = plt.legend(*scatter.legend_elements(), 
+                     title="Clases", 
+                     labels=data.target_names,
+                     loc="lower left")
+plt.gca().add_artist(legend1)
+plt.grid(True, linestyle='--', alpha=0.6)
+plt.show()
