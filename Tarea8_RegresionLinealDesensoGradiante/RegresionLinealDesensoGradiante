@@ -1,0 +1,123 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from typing import Optional, List
+
+class RegresionLinealDesensoGradiante:
+    def __init__(self, tasa_aprendizaje: float = 0.01, iteraciones: int = 1000):
+        self.tasa_aprendizaje = tasa_aprendizaje
+        self.iteraciones = iteraciones
+        self.costo_historial: List[float] = []
+        self.theta: Optional[np.ndarray] = None
+        
+        # Parámetros de estandarización
+        self.media: Optional[np.ndarray] = None
+        self.desviacion_estandar: Optional[np.ndarray] = None
+
+    def _estandarizar(self, X: np.ndarray) -> np.ndarray:
+        """Aplica la estandarización Z-score a las características."""
+        if self.media is None:
+            # Calcular media y desviación solo en el entrenamiento
+            self.media = np.mean(X, axis=0)
+            self.desviacion_estandar = np.std(X, axis=0)
+            # Evitar división por cero en columnas constantes
+            self.desviacion_estandar[self.desviacion_estandar == 0] = 1 
+            
+        return (X - self.media) / self.desviacion_estandar
+
+    def entrenar(self, X: np.ndarray, y: np.ndarray):
+        """
+        Entrena el modelo de Regresión Lineal.
+        X: Matriz de características (m, n_features)
+        y: Vector de resultados (m,)
+        """
+        #Estandarización de características
+        X_scaled = self._estandarizar(X)
+        m = len(y) # Número de muestras
+
+        #Preparación de datos: Agregar el sesgo (x0=1)
+        # X_b tendrá la forma (m, n_features + 1)
+        X_b = np.c_[np.ones((m, 1)), X_scaled]
+
+        #Inicialización de los coeficientes (theta)
+        # theta es [theta_0 (sesgo), theta_1, theta_2, ...]
+        self.theta = np.zeros(X_b.shape[1])
+
+        #Descenso de Gradiente (Iteración)
+        for i in range(self.iteraciones):
+            # CÁLCULO DE PREDICCIÓN (h(x))
+            predicciones = X_b.dot(self.theta)
+
+            # CÁLCULO DE ERROR
+            error = predicciones - y
+
+            # CÁLCULO DE FUNCIÓN DE COSTO (MSE / 2)
+            costo = (1 / (2 * m)) * np.sum(error**2)
+            self.costo_historial.append(costo)
+
+            # CÁLCULO DEL GRADIENTE
+            gradiente = (1 / m) * X_b.T.dot(error)
+
+            # ACTUALIZACIÓN DE COEFICIENTES
+            self.theta = self.theta - self.tasa_aprendizaje * gradiente
+
+        return self
+
+    def predecir(self, X: np.ndarray) -> np.ndarray:
+        """Realiza predicciones basadas en los coeficientes aprendidos."""
+        if self.theta is None:
+            raise ValueError("El modelo no ha sido entrenado. Llame a 'entrenar' primero.")
+        
+        #Estandarizar los nuevos datos usando la media/std del entrenamiento
+        X_scaled = self._estandarizar(X)
+        
+        #Agregar el sesgo
+        m = len(X)
+        X_b = np.c_[np.ones((m, 1)), X_scaled]
+        
+        #Calcular la predicción
+        return X_b.dot(self.theta)
+# Datos Multivariados de ejemplo:
+# X1: Horas de Estudio
+# X2: Asistencia a Clases (ej: 0-5)
+# Y: Nota Final
+X_data_multi = np.array([
+    [2, 3], [3, 4], [5, 5], [6, 2], [8, 4], [10, 5], [1, 1], [7, 3]
+])
+y_data_multi = np.array([60, 68, 85, 70, 90, 98, 50, 80])
+
+#CONFIGURACIÓN DE HIPERPARÁMETROS
+# Usamos una Tasa de Aprendizaje ligeramente más alta, ya que la estandarización
+# nos permite ser más agresivos sin divergir.
+tasa_aprendizaje = 0.1
+iteraciones = 500
+
+modelo_gd_mejorado = RegresionLinealGDMejorada(tasa_aprendizaje=tasa_aprendizaje, iteraciones=iteraciones)
+modelo_gd_mejorado.entrenar(X_data_multi, y_data_multi)
+
+#RESULTADOS
+print("--- Resultados del Descenso de Gradiente (Multivariado y Estandarizado) ---")
+print(f"Iteraciones: {iteraciones}, Tasa de Aprendizaje (α): {tasa_aprendizaje}")
+
+# El vector theta tiene (n_features + 1) elementos
+theta_sesgo = modelo_gd_mejorado.theta[0]
+theta_pendientes = modelo_gd_mejorado.theta[1:]
+
+print(f"Coeficiente Sesgo (Theta 0, Intercepto): {theta_sesgo:.4f}")
+for i, t in enumerate(theta_pendientes):
+    print(f"Coeficiente X{i+1} (Theta {i+1}, Pendiente): {t:.4f}")
+
+print(f"Costo final (Error): {modelo_gd_mejorado.costo_historial[-1]:.4f}")
+
+# El modelo predice la nota para alguien que estudió 4 horas y fue a 5 clases.
+prediccion_ejemplo = modelo_gd_mejorado.predecir(np.array([[4, 5]]))
+print(f"\nPredicción para X1=4, X2=5: {prediccion_ejemplo[0]:.2f}")
+
+
+# --- VISUALIZACIÓN DE LA CONVERGENCIA ---
+plt.figure(figsize=(10, 6))
+plt.plot(range(iteraciones), modelo_gd_mejorado.costo_historial, color='purple')
+plt.title('Convergencia del Descenso de Gradiente (Función de Costo)')
+plt.xlabel('Iteración')
+plt.ylabel('Costo J(θ)')
+plt.grid(True)
+plt.show()
