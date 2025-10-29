@@ -1,0 +1,70 @@
+import numpy as np
+import tensorflow as tf
+from tensorflow import keras
+import matplotlib.pyplot as plt
+
+# Datos de entrenamiento
+celsius_train = np.array([-40.0, -30.0, -20.0, -10.0, 0.0, 8.0, 15.0, 22.0, 30.0, 38.0], dtype=float)
+fahrenheit_train = np.array([-40.0, -22.0, -4.0, 14.0, 32.0, 46.4, 59.0, 71.6, 86.0, 100.4], dtype=float)
+
+#NORMALIZACIÓN
+# Normalizar los datos acelera el entrenamiento de la red.
+# Usamos el min/max de los datos de Celsius.
+celsius_min = celsius_train.min()
+celsius_max = celsius_train.max()
+celsius_range = celsius_max - celsius_min
+
+X_norm = (celsius_train - celsius_min) / celsius_range
+Y_norm = fahrenheit_train # La normalización en Y no es estrictamente necesaria aquí
+
+print(f"Datos de entrada normalizados (rango 0 a 1):\n{X_norm}")
+
+#DEFINICIÓN
+# Se usa una arquitectura más simple y eficiente (menos capas profundas) para esta tarea:
+model = keras.Sequential([
+    # Capa de entrada: 1 neurona, con función de activación 'relu'
+    keras.layers.Dense(units=10, activation='relu', input_shape=[1]),
+    # Capa oculta: 10 neuronas, 'relu'
+    keras.layers.Dense(units=10, activation='relu'),
+    # Capa de salida: 1 neurona, sin activación (Regresión Lineal)
+    keras.layers.Dense(units=1)
+])
+
+#COMPILACIÓN
+# Usamos el mismo optimizador y la misma función de pérdida (MSE)
+optimizer = keras.optimizers.Adam(learning_rate=0.01) # Se aumentó el LR para converger más rápido con datos normalizados
+model.compile(optimizer=optimizer, loss='mean_squared_error')
+
+# Mostrar la estructura del modelo
+print("\n--- Estructura de la Red Neuronal ---")
+model.summary()
+print("-" * 35)
+
+#ENTRENAMIENTO
+EPOCHS = 500
+print(f"Entrenando el modelo por {EPOCHS} épocas...")
+# Se entrena con los datos normalizados
+historial = model.fit(X_norm, fahrenheit_train, epochs=EPOCHS, verbose=0)
+print("Entrenamiento completado.")
+
+#VISUALIZACIÓN DE CONVERGENCIA (MEJORA)
+plt.figure(figsize=(10, 6))
+plt.plot(historial.history['loss'])
+plt.title('Pérdida (Loss) vs. Época')
+plt.xlabel('Época')
+plt.ylabel('Pérdida (MSE)')
+plt.grid(True)
+plt.show()
+
+#PRUEBA Y PREDICCIÓN
+celsius_test = np.array([10.0, 50.0, 100.0, -15.0], dtype=float)
+print("\n--- Realizando Predicciones ---")
+
+# Normalizar los datos de prueba antes de la predicción
+X_test_norm = (celsius_test - celsius_min) / celsius_range
+fahrenheit_pred = model.predict(X_test_norm)
+
+# Imprimir resultados y compararlos con el valor real
+for celsius, fahrenheit in zip(celsius_test, fahrenheit_pred):
+    real_fahrenheit = (celsius * 1.8) + 32
+    print(f"{celsius}°C (Real: {real_fahrenheit:.2f}°F) => Predicción: {fahrenheit[0]:.2f}°F")
