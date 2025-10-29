@@ -1,0 +1,44 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score
+
+def realizar_regresion_lineal(x_datos: np.ndarray, y_datos: np.ndarray, titulo: str = 'Regresión Lineal Simple'):
+    #Inicialización y Entrenamiento del Modelo
+    modelo = LinearRegression()
+    modelo.fit(x_datos, y_datos)
+
+    #Predicciones y Evaluar
+    y_pred = modelo.predict(x_datos)
+    
+    #cálculo del R-cuadrado para evaluar el ajuste
+    r2 = r2_score(y_datos, y_pred)
+
+    #Mostrar Parámetros del Modelo y Evaluación
+    print(f"--- Resultados del Modelo ---")
+    print(f"Coeficiente (Pendiente, m): {modelo.coef_[0]:.4f}")
+    print(f"Intersección (Ordenada al origen, b): {modelo.intercept_:.4f}")
+    print(f"Puntuación R-cuadrado (R²): {r2:.4f}")
+    
+    #Visualización del Resultado
+    plt.figure(figsize=(9, 6))
+    
+    # Puntos de datos originales
+    plt.scatter(x_datos, y_datos, color='#1f77b4', s=100, label='Datos Originales')
+    
+    #Línea de regresión
+    plt.plot(x_datos, y_pred, color='#ff7f0e', linewidth=3, label=f'Línea de Regresión ($R^2$={r2:.2f})')
+    
+    plt.title(titulo, fontsize=16)
+    plt.xlabel('Variable Independiente (X)', fontsize=12)
+    plt.ylabel('Variable Dependiente (Y)', fontsize=12)
+    plt.legend(fontsize=10)
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.show()
+    
+# Ejemplo: Relación entre Horas de Estudio (X) y Nota del Examen (Y)
+x_horas = np.array([2, 3, 5, 6, 8, 10]).reshape(-1, 1) # NOTA: .reshape(-1, 1) es crucial para sklearn
+y_notas = np.array([55, 65, 75, 80, 85, 95])
+
+print("Análisis de Regresión Lineal: Horas de Estudio vs. Nota\n")
+realizar_regresion_lineal(x_horas, y_notas, "Regresión Lineal: Horas de Estudio vs. Nota")
