@@ -1,0 +1,192 @@
+import collections
+import heapq
+import copy
+from typing import List, Tuple, Dict, Set, Optional
+
+# --- ESTRUCTURAS DE DATOS ---
+
+class Nodo:
+    """
+    Representa un estado del 8-Puzzle en el espacio de búsqueda.
+    Se utiliza una tupla (estado_matriz) para que sea hasheable.
+    """
+    def __init__(self, estado: Tuple[int, ...], padre: Optional['Nodo'], nivel: int, costo_g: int):
+        self.estado = estado
+        self.padre = padre
+        self.nivel = nivel      # Profundidad/Nivel
+        self.costo_g = costo_g  # Costo real del camino (g(n))
+        
+    # El método __lt__ es esencial para la cola de prioridad (heapq)
+    # UCS prioriza el menor costo_g.
+    def __lt__(self, otro: 'Nodo') -> bool:
+        return self.costo_g < otro.costo_g
+
+    # El método __eq__ es útil si el nodo tiene que ser comparado por su estado
+    def __eq__(self, otro):
+        return isinstance(otro, Nodo) and self.estado == otro.estado
+
+
+class PuzzleSolver:
+    DIMENSION = 3
+    # Movimientos posibles: (d_fila, d_columna)
+    MOVIMIENTOS = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # Arriba, Abajo, Izquierda, Derecha
+
+    def __init__(self, objetivo: Tuple[int, ...]):
+        self.objetivo = objetivo
+        
+    def _posicion_valida(self, x: int, y: int) -> bool:
+        """Verifica si las coordenadas (x, y) están dentro de la matriz 3x3."""
+        return 0 <= x < self.DIMENSION and 0 <= y < self.DIMENSION
+
+    def _estado_a_matriz(self, estado: Tuple[int, ...]) -> List[List[int]]:
+        """Convierte la tupla de estado (1D) a una matriz (2D)."""
+        matriz = [list(estado[i * self.DIMENSION:(i + 1) * self.DIMENSION]) 
+                  for i in range(self.DIMENSION)]
+        return matriz
+    
+    def _matriz_a_estado(self, matriz: List[List[int]]) -> Tuple[int, ...]:
+        """Convierte la matriz (2D) a una tupla de estado (1D) hasheable."""
+        return tuple(val for fila in matriz for val in fila)
+
+    def _obtener_sucesores(self, nodo: Nodo) -> List[Nodo]:
+        """Genera todos los estados sucesores válidos a partir del nodo actual."""
+        sucesores = []
+        matriz = self._estado_a_matriz(nodo.estado)
+        
+        # Encontrar la posición del espacio vacío (0)
+        x, y = next(((i, j) for i in range(self.DIMENSION) for j in range(self.DIMENSION) if matriz[i][j] == 0))
+
+        for dx, dy in self.MOVIMIENTOS:
+            nx, ny = x + dx, y + dy
+            
+            if self._posicion_valida(nx, ny):
+                # Crear una nueva matriz para el estado sucesor
+                nueva_matriz = copy.deepcopy(matriz)
+                
+                # Intercambiar el 0 con la baldosa vecina
+                nueva_matriz[x][y], nueva_matriz[nx][ny] = nueva_matriz[nx][ny], nueva_matriz[x][y]
+                
+                # Crear el nuevo estado hasheable
+                nuevo_estado = self._matriz_a_estado(nueva_matriz)
+                
+                # El costo de la acción es 1 (un movimiento)
+                nuevo_costo_g = nodo.costo_g + 1
+                
+                sucesores.append(Nodo(nuevo_estado, nodo, nodo.nivel + 1, nuevo_costo_g))
+                
+        return sucesores
+
+    def _reconstruir_camino(self, nodo: Nodo) -> List[Tuple[int, ...]]:
+        """Reconstruye el camino desde el nodo objetivo hasta la raíz."""
+        camino = []
+        actual = nodo
+        while actual:
+            camino.append(actual.estado)
+            actual = actual.padre
+        return list(reversed(camino))
+
+    # --- BÚSQUEDAS (Integrado y Simplificado) ---
+
+    def buscar_solucion(self, inicial: Tuple[int, ...], metodo: str):
+        """Implementa BFS, DFS o UCS en base al parámetro 'metodo'."""
+        
+        # Inicialización de la frontera
+        if metodo == "BFS":
+            # FIFO: para búsqueda por niveles
+            frontera = collections.deque([Nodo(inicial, None, 0, 0)])
+            nodos_pop = frontera.popleft
+            nodos_push = frontera.append
+        elif metodo == "DFS":
+            # LIFO: para búsqueda por profundidad (Stack)
+            frontera = [Nodo(inicial, None, 0, 0)]
+            nodos_pop = frontera.pop
+            nodos_push = frontera.append
+        elif metodo == "UCS":
+            # Cola de Prioridad: prioriza el menor costo_g (heapq)
+            # UCS necesita el costo_g para la prioridad
+            raiz_ucs = Nodo(inicial, None, 0, 0)
+            frontera = [raiz_ucs] # heapq ya usa el __lt__ del Nodo
+            nodos_pop = lambda: heapq.heappop(frontera)
+            nodos_push = lambda n: heapq.heappush(frontera, n)
+        else:
+            raise ValueError(f"Método de búsqueda no válido: {metodo}")
+
+        visitados: Set[Tuple[int, ...]] = {inicial}
+        nodos_expandidos = 0
+
+        while frontera:
+            nodo_actual = nodos_pop()
+            nodos_expandidos += 1
+            
+            # Condición de objetivo
+            if nodo_actual.estado == self.objetivo:
+                print(f"\n--- Solución Encontrada ({metodo}) ---")
+                camino = self._reconstruir_camino(nodo_actual)
+                for i, estado in enumerate(camino):
+                    print(f"Paso {i}:")
+                    self.imprimir_matriz(estado)
+                print(f"Longitud del camino: {len(camino) - 1} movimientos.")
+                print(f"Nodos expandidos: {nodos_expandidos}")
+                return
+            
+            # Generar sucesores
+            for hijo in self._obtener_sucesores(nodo_actual):
+                if hijo.estado not in visitados:
+                    visitados.add(hijo.estado)
+                    nodos_push(hijo)
+                # NOTA: En UCS y A*, a menudo se relajan los nodos ya visitados si se encuentra
+                # un camino más corto, pero para BFS/DFS el simple chequeo de 'visitados' es suficiente.
+
+
+    def imprimir_matriz(self, estado: Tuple[int, ...]):
+        """Imprime el estado del puzzle de forma legible."""
+        matriz = self._estado_a_matriz(estado)
+        for fila in matriz:
+            print(" | ".join(map(str, fila)).replace('0', ' '))
+        print("-" * 5)
+        
+# --- EJEMPLO DE USO ---
+
+def main():
+    # El estado inicial debe ser una tupla (o plano array) para la representación 1D.
+    # El estado se lee de izquierda a derecha, de arriba a abajo.
+    INICIAL_ESTADO = (1, 8, 2, 0, 4, 3, 7, 6, 5) # 0 es el espacio vacío
+    OBJETIVO_ESTADO = (1, 2, 3, 4, 5, 6, 7, 8, 0)
+    
+    solver = PuzzleSolver(OBJETIVO_ESTADO)
+
+    print("Estado Inicial:")
+    solver.imprimir_matriz(INICIAL_ESTADO)
+    
+    print("Estado Objetivo:")
+    solver.imprimir_matriz(OBJETIVO_ESTADO)
+
+    while True:
+        try:
+            print("\nSeleccione el algoritmo de búsqueda:")
+            print("1. DFS (Profundidad)")
+            print("2. BFS (Anchura)")
+            print("3. UCS (Costo Uniforme)")
+            opcion = input("Opción (o 'salir'): ").upper()
+
+            if opcion == 'SALIR':
+                break
+                
+            metodo = None
+            if opcion == '1':
+                metodo = "DFS"
+            elif opcion == '2':
+                metodo = "BFS"
+            elif opcion == '3':
+                metodo = "UCS"
+
+            if metodo:
+                solver.buscar_solucion(INICIAL_ESTADO, metodo)
+            else:
+                print("Opción no válida. Inténtelo de nuevo.")
+        except Exception as e:
+            print(f"Ocurrió un error: {e}")
+            break
+
+if __name__ == "__main__":
+    main()
