@@ -1,0 +1,253 @@
+from collections import deque
+import heapq
+import math
+from typing import Callable, Any, Tuple, List, Dict
+
+#ESTRUCTURAS BÁSICAS
+class Nodo:
+    """Representa un nodo en el espacio de búsqueda."""
+    def __init__(self, estado, padre=None, accion=None, costo_g=0, costo_h=0):
+        self.estado = estado
+        self.padre = padre
+        self.accion = accion
+        self.costo_g = costo_g  # Costo desde el inicio (g(n))
+        self.costo_h = costo_h  # Costo heurístico (h(n))
+        self.costo_f = costo_g + costo_h # Costo total (f(n) = g(n) + h(n))
+    
+    # Define la comparación para la cola de prioridad (heapq)
+    # Compara por costo_f para A* y por costo_g para Costo Uniforme
+    def __lt__(self, otro):
+        return self.costo_f < otro.costo_f
+
+def profundidad(nodo: Nodo) -> int:
+    """Calcula la profundidad de un nodo."""
+    profundidad = 0
+    temp = nodo
+    while temp.padre:
+        profundidad += 1
+        temp = temp.padre
+    return profundidad
+
+def reconstruir_camino(nodo: Nodo, reverso: bool = False) -> List[Tuple[Any, Any]]:
+    """Reconstruye la secuencia de acciones y estados hasta la raíz."""
+    camino = []
+    while nodo:
+        # Almacena (Accion, Estado, Costo_G)
+        camino.append((nodo.accion, nodo.estado, nodo.costo_g))
+        nodo = nodo.padre
+    # El camino se invierte para ir del estado inicial al objetivo
+    return camino if reverso else list(reversed(camino))
+
+#ALGORITMOS DE BÚSQUEDA 
+# Búsqueda Primero en Anchura (BFS)
+def busqueda_anchura(estado_inicial, es_objetivo: Callable, obtener_sucesores: Callable) -> Tuple[List[Tuple], int]:
+    """Busca la solución expandiendo la frontera por niveles."""
+    frontera = deque([Nodo(estado_inicial)])
+    visitados = {estado_inicial}
+    nodos_expandidos = 0
+    
+    while frontera:
+        nodo_actual = frontera.popleft()
+        nodos_expandidos += 1
+        
+        if es_objetivo(nodo_actual.estado):
+            return reconstruir_camino(nodo_actual), nodos_expandidos
+        
+        for accion, estado_siguiente, costo in obtener_sucesores(nodo_actual.estado):
+            if estado_siguiente not in visitados:
+                visitados.add(estado_siguiente)
+                nuevo_nodo = Nodo(estado_siguiente, nodo_actual, accion, nodo_actual.costo_g + costo)
+                frontera.append(nuevo_nodo)
+    
+    return None, nodos_expandidos
+
+#Búsqueda Primero en Profundidad (DFS)
+def busqueda_profundidad(estado_inicial, es_objetivo: Callable, obtener_sucesores: Callable) -> Tuple[List[Tuple], int]:
+    """Busca la solución explorando un camino hasta el final antes de retroceder."""
+    frontera = [Nodo(estado_inicial)] # Pila (LIFO)
+    visitados = {estado_inicial}
+    nodos_expandidos = 0
+    
+    while frontera:
+        nodo_actual = frontera.pop()
+        nodos_expandidos += 1
+        
+        if es_objetivo(nodo_actual.estado):
+            return reconstruir_camino(nodo_actual), nodos_expandidos
+        
+        for accion, estado_siguiente, costo in reversed(list(obtener_sucesores(nodo_actual.estado))):
+            if estado_siguiente not in visitados:
+                visitados.add(estado_siguiente)
+                nuevo_nodo = Nodo(estado_siguiente, nodo_actual, accion, nodo_actual.costo_g + costo)
+                frontera.append(nuevo_nodo)
+    
+    return None, nodos_expandidos
+
+#Búsqueda Costo Uniforme (UCS)
+def busqueda_costo_uniforme(estado_inicial, es_objetivo: Callable, obtener_sucesores: Callable) -> Tuple[List[Tuple], int]:
+    """Busca la solución expandiendo el nodo con el menor costo total (g(n))."""
+    # Se usa la clase Nodo con costo_h=0 y se compara por costo_f (que es costo_g)
+    frontera = []
+    heapq.heappush(frontera, (0, Nodo(estado_inicial))) # (costo_g, nodo)
+    # visitados almacena el mejor costo_g encontrado hasta ahora para cada estado
+    visitados = {estado_inicial: 0}
+    nodos_expandidos = 0
+    
+    while frontera:
+        costo_actual_g, nodo_actual = heapq.heappop(frontera)
+        nodos_expandidos += 1
+        
+        # Este check es para manejar nodos obsoletos en la cola (con un costo_g mayor)
+        if costo_actual_g > visitados.get(nodo_actual.estado, float('inf')):
+            continue
+            
+        if es_objetivo(nodo_actual.estado):
+            return reconstruir_camino(nodo_actual), nodos_expandidos
+        
+        for accion, estado_siguiente, costo in obtener_sucesores(nodo_actual.estado):
+            nuevo_costo_g = nodo_actual.costo_g + costo
+            
+            if estado_siguiente not in visitados or nuevo_costo_g < visitados[estado_siguiente]:
+                visitados[estado_siguiente] = nuevo_costo_g
+                nuevo_nodo = Nodo(estado_siguiente, nodo_actual, accion, nuevo_costo_g)
+                # Almacenamos (costo_g, nodo) en el heap, ya que el __lt__ de Nodo no se usa aquí.
+                heapq.heappush(frontera, (nuevo_costo_g, nuevo_nodo))
+    
+    return None, nodos_expandidos
+
+#Opcional: Búsqueda Profundidad Limitada (DLS)
+def busqueda_profundidad_limitada(estado_inicial, es_objetivo: Callable, obtener_sucesores: Callable, limite_profundidad: int) -> Tuple[List[Tuple], int]:
+    """Busca la solución como DFS, pero no expande nodos más allá del límite."""
+    frontera = [Nodo(estado_inicial)] # Pila (LIFO)
+    nodos_expandidos = 0
+    
+    while frontera:
+        nodo_actual = frontera.pop()
+        nodos_expandidos += 1
+        
+        if es_objetivo(nodo_actual.estado):
+            return reconstruir_camino(nodo_actual), nodos_expandidos
+        
+        if profundidad(nodo_actual) < limite_profundidad:
+            # Usar un conjunto de visitados solo a nivel de la rama actual para evitar bucles simples
+            # y mantener la posibilidad de visitar el mismo estado en otra rama menos profunda.
+            for accion, estado_siguiente, costo in reversed(list(obtener_sucesores(nodo_actual.estado))):
+                nuevo_nodo = Nodo(estado_siguiente, nodo_actual, accion, nodo_actual.costo_g + costo)
+                frontera.append(nuevo_nodo)
+    
+    return None, nodos_expandidos
+
+#Opcional: Búsqueda Profundidad Iterativa (IDS)
+def busqueda_profundidad_iterativa(estado_inicial, es_objetivo: Callable, obtener_sucesores: Callable, limite_maximo: int = 100) -> Tuple[List[Tuple], int]:
+    """Combina la búsqueda limitada con incrementos de profundidad."""
+    total_nodos_expandidos = 0
+    for limite in range(limite_maximo + 1):
+        resultado, nodos_expandidos = busqueda_profundidad_limitada(estado_inicial, es_objetivo, obtener_sucesores, limite)
+        total_nodos_expandidos += nodos_expandidos
+        if resultado is not None:
+            return resultado, total_nodos_expandidos
+    return None, total_nodos_expandidos
+
+# --- FUNCIONES HEURÍSTICAS (Punto 6) ---
+
+#Crear una función Heurística propia
+def heuristica_propia_conteo(estado_actual: Tuple[int, int], estado_objetivo: Tuple[int, int]) -> float:
+    """
+    Función heurística propia para un problema de laberinto/coordenadas (x, y).
+    Calcula la distancia Manhattan (costo_h) entre el estado actual y el objetivo.
+    """
+    x_actual, y_actual = estado_actual
+    x_objetivo, y_objetivo = estado_objetivo
+    # Manhattan: la suma de las diferencias absolutas en coordenadas
+    return float(abs(x_actual - x_objetivo) + abs(y_actual - y_objetivo))
+
+#Opcional: Búsqueda A* (utiliza heurística)
+def busqueda_a_estrella(estado_inicial, es_objetivo: Callable, obtener_sucesores: Callable, heuristica: Callable, estado_objetivo_h: Any) -> Tuple[List[Tuple], int]:
+    """Busca la solución expandiendo el nodo con el menor costo f(n) = g(n) + h(n)."""
+    
+    # Inicializar con el costo heurístico
+    costo_h_inicial = heuristica(estado_inicial, estado_objetivo_h)
+    nodo_inicial = Nodo(estado_inicial, costo_h=costo_h_inicial)
+    
+    # Cola de prioridad: (costo_f, nodo) - Usa el __lt__ del Nodo para comparar por costo_f
+    frontera = [nodo_inicial]
+    # visitados almacena el mejor costo_f encontrado hasta ahora para cada estado
+    visitados = {estado_inicial: nodo_inicial.costo_f}
+    nodos_expandidos = 0
+    
+    while frontera:
+        nodo_actual = heapq.heappop(frontera)
+        nodos_expandidos += 1
+        
+        # Comprobar si el nodo actual ya está obsoleto
+        if nodo_actual.costo_f > visitados.get(nodo_actual.estado, float('inf')):
+            continue
+            
+        if es_objetivo(nodo_actual.estado):
+            return reconstruir_camino(nodo_actual), nodos_expandidos
+        
+        for accion, estado_siguiente, costo in obtener_sucesores(nodo_actual.estado):
+            nuevo_costo_g = nodo_actual.costo_g + costo
+            nuevo_costo_h = heuristica(estado_siguiente, estado_objetivo_h)
+            nuevo_costo_f = nuevo_costo_g + nuevo_costo_h
+            
+            if estado_siguiente not in visitados or nuevo_costo_f < visitados[estado_siguiente]:
+                visitados[estado_siguiente] = nuevo_costo_f
+                nuevo_nodo = Nodo(estado_siguiente, nodo_actual, accion, nuevo_costo_g, nuevo_costo_h)
+                heapq.heappush(frontera, nuevo_nodo)
+    
+    return None, nodos_expandidos
+
+#IMPLEMENTACIÓN DE EJEMPLO
+
+def ejemplo_uso():
+    """Ejemplo simple de laberinto 3x3 para probar los algoritmos."""
+    # Los estados serán tuplas (x, y)
+    ESTADO_INICIAL = (0, 0)
+    ESTADO_OBJETIVO = (2, 2)
+    
+    def es_objetivo_ejemplo(estado):
+        return estado == ESTADO_OBJETIVO
+
+    def obtener_sucesores_ejemplo(estado):
+        x, y = estado
+        sucesores = []
+        # Definición de movimientos (Acción, dX, dY, Costo)
+        movimientos = [
+            ("Derecha", 1, 0, 1), 
+            ("Abajo", 0, 1, 1), 
+            ("Izquierda", -1, 0, 1), 
+            ("Arriba", 0, -1, 1)
+        ]
+        
+        for accion, dx, dy, costo in movimientos:
+            nx, ny = x + dx, y + dy
+            # Verificar límites del "laberinto" 3x3
+            if 0 <= nx <= 2 and 0 <= ny <= 2:
+                sucesores.append((accion, (nx, ny), costo))
+        return sucesores
+
+    print("--- EJECUCIÓN DE ALGORITMOS ---")
+    
+    #Búsqueda Primero en Anchura (BFS)
+    camino, nodos = busqueda_anchura(ESTADO_INICIAL, es_objetivo_ejemplo, obtener_sucesores_ejemplo)
+    print(f"1. BFS: Nodos Exp.={nodos}, Largo Camino={len(camino) if camino else 0}")
+    
+    #Búsqueda Primero en Profundidad (DFS)
+    camino, nodos = busqueda_profundidad(ESTADO_INICIAL, es_objetivo_ejemplo, obtener_sucesores_ejemplo)
+    print(f"2. DFS: Nodos Exp.={nodos}, Largo Camino={len(camino) if camino else 0}")
+
+    #Búsqueda Costo Uniforme (UCS)
+    camino, nodos = busqueda_costo_uniforme(ESTADO_INICIAL, es_objetivo_ejemplo, obtener_sucesores_ejemplo)
+    print(f"3. UCS: Nodos Exp.={nodos}, Costo={camino[-1][2] if camino else 'N/A'}")
+
+    #Búsqueda Profundidad Iterativa (IDS)-(Opcional)
+    camino, nodos = busqueda_profundidad_iterativa(ESTADO_INICIAL, es_objetivo_ejemplo, obtener_sucesores_ejemplo, limite_maximo=10)
+    print(f"4. IDS: Nodos Exp.={nodos}, Largo Camino={len(camino) if camino else 0}")
+
+    # A*(Utilizando la heurística propia)
+    camino, nodos = busqueda_a_estrella(ESTADO_INICIAL, es_objetivo_ejemplo, obtener_sucesores_ejemplo, heuristica_propia_conteo, ESTADO_OBJETIVO)
+    print(f"\n6. A* (con Heurística Propia): Nodos Exp.={nodos}, Costo={camino[-1][2] if camino else 'N/A'}")
+
+if __name__ == "__main__":
+    ejemplo_uso()
