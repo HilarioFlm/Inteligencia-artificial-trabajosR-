@@ -1,0 +1,109 @@
+import heapq
+import sys
+
+class Grafo:
+    """
+    Clase para representar un Grafo usando un diccionario de adyacencia.
+    Incluye el algoritmo de Dijkstra para encontrar la ruta más corta.
+    """
+    def __init__(self):
+        # adyacencias: {nodo_origen: {nodo_destino: peso, ...}, ...}
+        self.adyacencias = {}
+
+    def agregar_nodo(self, nodo):
+        """Asegura que el nodo exista en el diccionario de adyacencia."""
+        if nodo not in self.adyacencias:
+            self.adyacencias[nodo] = {}
+
+    def agregar_arista(self, desde_nodo, hasta_nodo, peso, bidireccional=False):
+        """Agrega una arista dirigida con un peso."""
+        self.agregar_nodo(desde_nodo)
+        self.agregar_nodo(hasta_nodo)
+
+        # Arista principal (Desde -> Hasta)
+        self.adyacencias[desde_nodo][hasta_nodo] = peso
+
+        # Si es bidireccional, agrega la arista de retorno (Hasta -> Desde)
+        if bidireccional:
+            self.adyacencias[hasta_nodo][desde_nodo] = peso
+            
+    def dijkstra(self, inicio):
+        """
+        Calcula la distancia más corta desde el nodo 'inicio' a todos los demás.
+        Retorna: (distancias, camino_previo)
+        """
+        # Inicialización
+        nodos = self.adyacencias.keys()
+        distancias = {nodo: float('inf') for nodo in nodos}
+        distancias[inicio] = 0
+        camino_previo = {nodo: None for nodo in nodos}
+        
+        # Cola de prioridad: (distancia, nodo)
+        cola_prioridad = [(0, inicio)]
+
+        while cola_prioridad:
+            distancia_actual, nodo_actual = heapq.heappop(cola_prioridad)
+            
+            # Condición de optimización: ignorar si ya encontramos un camino más corto
+            if distancia_actual > distancias[nodo_actual]:
+                continue
+            
+            # Explorar vecinos
+            for vecino, peso in self.adyacencias[nodo_actual].items():
+                nueva_distancia = distancia_actual + peso
+                
+                # Relajación: Si encontramos un camino más corto al vecino
+                if nueva_distancia < distancias[vecino]:
+                    distancias[vecino] = nueva_distancia
+                    camino_previo[vecino] = nodo_actual
+                    heapq.heappush(cola_prioridad, (nueva_distancia, vecino))
+                    
+        return distancias, camino_previo
+
+    def obtener_camino(self, camino_previo, destino):
+        """Reconstruye la ruta más corta desde el diccionario camino_previo."""
+        camino = []
+        nodo_actual = destino
+        
+        while nodo_actual is not None:
+            camino.append(nodo_actual)
+            nodo_actual = camino_previo[nodo_actual]
+            
+        return camino[::-1] # Invertir para obtener el camino desde el inicio
+
+# --- Ejemplo de Uso (Bloque Principal) ---
+if __name__ == "__main__":
+    g = Grafo()
+    
+    # Agregar aristas
+    g.agregar_arista('A', 'B', 4)
+    g.agregar_arista('A', 'C', 2)
+    g.agregar_arista('B', 'C', 1)
+    g.agregar_arista('B', 'D', 5)
+    g.agregar_arista('C', 'D', 8)
+    g.agregar_arista('C', 'E', 10)
+    g.agregar_arista('D', 'E', 2)
+    g.agregar_arista('D', 'F', 6)
+    g.agregar_arista('E', 'F', 3) # Note que F es automáticamente un nodo al agregarse esta arista
+
+    inicio = 'A'
+    
+    # 1. Ejecutar Dijkstra
+    distancias, camino_previo = g.dijkstra(inicio)
+    
+    # 2. Mostrar resultados
+    print(f"Distancias más cortas desde el nodo {inicio}:")
+    print("-" * 40)
+    # Ordenar y filtrar para mejor presentación
+    for nodo in sorted(g.adyacencias.keys()):
+        print(f"Distancia a {nodo}: {distancias[nodo]}")
+    
+    print("\nCaminos más cortos:")
+    print("-" * 40)
+    for destino in sorted(g.adyacencias.keys()):
+        if destino != inicio:
+            if distancias[destino] == float('inf'):
+                 print(f"{inicio} -> {destino}: Inaccesible")
+            else:
+                camino = g.obtener_camino(camino_previo, destino)
+                print(f"{inicio} -> {destino}: {' -> '.join(camino)} (Distancia: {distancias[destino]})")
