@@ -1,0 +1,105 @@
+class Nodo:
+    """Representa un único nodo en el Árbol Binario de Búsqueda."""
+    def __init__(self, valor):
+        # En este BST, el nodo se ordena por 'valor'
+        self.valor = valor
+        self.izq = None
+        self.der = None
+
+class Arbol:
+    """Implementación del Árbol Binario de Búsqueda."""
+    def __init__(self):
+        self.raiz = None
+
+    # --- Método de Inserción (Basado en el primer código) ---
+    def insertar(self, valor):
+        """Método público para insertar un valor. Llama al método recursivo."""
+        if self.raiz is None:
+            self.raiz = Nodo(valor)
+        else:
+            self._insertar_recursivo(self.raiz, valor)
+
+    def _insertar_recursivo(self, actual, valor):
+        """Método privado que maneja la inserción recursiva."""
+        if valor < actual.valor:  # Va a la izquierda
+            if actual.izq is None:
+                actual.izq = Nodo(valor)
+            else:
+                self._insertar_recursivo(actual.izq, valor)
+        elif valor > actual.valor:  # Va a la derecha
+            if actual.der is None:
+                actual.der = Nodo(valor)
+            else:
+                self._insertar_recursivo(actual.der, valor)
+        # Si es igual, no hace nada (evita duplicados)
+
+    # --- Método de Búsqueda (Basado en el segundo código) ---
+    def buscar(self, valor):
+        """Método público para buscar un valor. Llama al método recursivo."""
+        return self._buscar_recursivo(self.raiz, valor)
+
+    def _buscar_recursivo(self, actual, valor):
+        """Método privado que realiza la búsqueda eficiente en el BST."""
+        #El nodo es None (no encontrado)
+        if actual is None:
+            return None
+        
+        # El nodo es el buscado
+        if actual.valor == valor:
+            return actual
+
+        # Se usa la propiedad de BST para buscar a la izquierda o derecha
+        if valor < actual.valor:
+            return self._buscar_recursivo(actual.izq, valor)
+        else:
+            return self._buscar_recursivo(actual.der, valor)
+
+    # ---Método de Impresión (Recorrido InOrden) ---
+    def imprimir_arbol(self):
+        """Método público para imprimir el árbol en InOrden (orden ascendente)."""
+        print("Recorrido InOrden (orden ascendente):")
+        self._imprimir_recursivo(self.raiz)
+        print() # Agregado para una nueva línea al final
+
+    def _imprimir_recursivo(self, actual):
+        """Método privado que realiza el recorrido InOrden recursivo."""
+        if actual is not None:
+            self._imprimir_recursivo(actual.izq)
+            print(actual.valor, end=" - ")
+            self._imprimir_recursivo(actual.der)
+
+
+# ---Demostración de Uso ---
+if __name__ == "__main__":
+    mi_arbol = Arbol()
+    
+    #Insertar valores
+    print("Insertando valores: 50, 30, 70, 20, 40, 60, 80")
+    mi_arbol.insertar(50)
+    mi_arbol.insertar(30)
+    mi_arbol.insertar(70)
+    mi_arbol.insertar(20)
+    mi_arbol.insertar(40)
+    mi_arbol.insertar(60)
+    mi_arbol.insertar(80)
+    mi_arbol.insertar(30) # No se insertará (duplicado)
+
+    #Imprimir el árbol
+    print("-" * 30)
+    mi_arbol.imprimir_arbol() # Salida: 20 - 30 - 40 - 50 - 60 - 70 - 80 -
+
+    #Buscar valores
+    print("-" * 30)
+    valor_a_buscar = 40
+    nodo_encontrado = mi_arbol.buscar(valor_a_buscar)
+
+    if nodo_encontrado is not None:
+        print(f"Buscando {valor_a_buscar}: Nodo encontrado con valor {nodo_encontrado.valor}")
+    else:
+        print(f"Buscando {valor_a_buscar}: Nodo no encontrado.")
+        
+    valor_ausente = 10
+    nodo_ausente = mi_arbol.buscar(valor_ausente)
+    
+    if nodo_ausente is None:
+        print(f"Buscando {valor_ausente}: Nodo no encontrado.")
