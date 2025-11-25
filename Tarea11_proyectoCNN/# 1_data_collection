@@ -1,0 +1,111 @@
+# 1_data_collection.py
+"""
+Script 1: Recolección de datos (guarda imágenes a color para Transfer Learning).
+- Guarda recortes RGB con buffer seguro.
+- Verifica/crea directorios para cada clase.
+- Mantiene el mismo número de muestras por clase.
+"""
+import cv2
+import os
+import numpy as np
+
+DATASET_PATH = "dataset_rostros"
+CLASES = ["yo", "famoso1", "familiar1", "amigo1", "persona5", "persona6", "persona7", "persona8", "persona9", "persona10"]
+NUM_MUESTRAS = 100  # imágenes por clase recomendadas
+BUFFER = 20  # pixeles alrededor del rostro
+CAMERA_INDEX = 0
+
+os.makedirs(DATASET_PATH, exist_ok=True)
+for clase in CLASES:
+    path = os.path.join(DATASET_PATH, clase)
+    os.makedirs(path, exist_ok=True)
+    print(f"Directorio creado/verificado: {path}")
+
+# Usaremos MTCNN si está disponible para mejor detección; en caso contrario fallback a Haar
+use_mtcnn = True
+try:
+    from mtcnn import MTCNN
+    detector = MTCNN()
+    print("Usando MTCNN para detección de rostros (más robusto).")
+except Exception:
+    detector = None
+    haar = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+    print("MTCNN no disponible: usando Haar Cascade como fallback.")
+
+cap = cv2.VideoCapture(CAMERA_INDEX)
+clase_idx = 0
+muestra_actual = 0
+
+print('\nPresiona "e" para capturar una muestra, "n" para pasar a la siguiente clase, "q" para salir.')
+
+while clase_idx < len(CLASES):
+    clase_actual = CLASES[clase_idx]
+    ret, frame = cap.read()
+    if not ret:
+        print("Error leyendo cámara. Saliendo.")
+        break
+
+    display = frame.copy()
+    h_img, w_img = frame.shape[:2]
+
+    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+    # Detectar rostros
+    rostros = []
+    if detector is not None:
+        results = detector.detect_faces(rgb)
+        for r in results:
+            x, y, w, h = r['box']
+            x, y = max(0, x), max(0, y)
+            rostros.append((x, y, w, h))
+    else:
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        found = haar.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+        rostros = found
+
+    # Dibujar detecciones
+    for (x, y, w, h) in rostros:
+        cv2.rectangle(display, (x, y), (x+w, y+h), (255, 0, 0), 2)
+
+    cv2.putText(display, f"Clase: {clase_actual} | Muestras: {muestra_actual}/{NUM_MUESTRAS}", (10,30),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
+
+    cv2.imshow('Recoleccion de Datos - Presiona e para capturar', display)
+    key = cv2.waitKey(1) & 0xFF
+
+    if key == ord('e'):
+        if len(rostros) > 0:
+            x, y, w, h = rostros[0]
+            x1 = max(0, x - BUFFER)
+            y1 = max(0, y - BUFFER)
+            x2 = min(w_img, x + w + BUFFER)
+            y2 = min(h_img, y + h + BUFFER)
+            crop = frame[y1:y2, x1:x2]  # color BGR
+            if crop.size != 0:
+                # Guardar con nombre incremental
+                ruta = os.path.join(DATASET_PATH, clase_actual, f"{clase_actual}_{muestra_actual:03d}.jpg")
+                cv2.imwrite(ruta, crop)
+                muestra_actual += 1
+                print(f"Guardado: {ruta}")
+            else:
+                print("Recorte vacío: omitiendo muestra.")
+        else:
+            print("No se detectó rostro: mueve la cámara o presiona 'n' para pasar a la siguiente clase.")
+
+    if key == ord('n'):
+        print(f"Saltando {clase_actual} con {muestra_actual} muestras tomadas.")
+        clase_idx += 1
+        muestra_actual = 0
+
+    if muestra_actual >= NUM_MUESTRAS:
+        print(f"\n¡{clase_actual} completado ({NUM_MUESTRAS} muestras)!\n")
+        clase_idx += 1
+        muestra_actual = 0
+
+    if key == ord('q'):
+        print("Salida solicitada por el usuario.")
+        break
+
+cap.release()
+cv2.destroyAllWindows()
+print("Recolección de datos terminada.")
