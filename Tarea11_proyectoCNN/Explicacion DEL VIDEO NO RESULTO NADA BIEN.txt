@@ -1,4 +1,0 @@
-buenas profe, mi explicación probablemente no resulte en una calificación,
-mi código rescata las imágenes, e intento entrenarlo y tarda demasiado, mas en mi lap que es un poco lenta y no puede correr programas tan pesados,
-
-detecta la cara y todo y las guarda, solo que no puedo grabar el video de cuando las detecta por que mi lap no tiene la capacidad.
